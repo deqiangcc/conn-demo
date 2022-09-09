@@ -16,9 +16,14 @@ const (
 )
 
 func main() {
-	fmt.Println("start websoket server...")
 	http.HandleFunc("/ws", wsPage)
-	http.ListenAndServe(":8001", nil)
+	err := http.ListenAndServe(":8001", nil)
+	if err != nil {
+		log.Println("start websoket server err: ", err)
+		return
+	}
+
+	fmt.Println("start websoket server success ...")
 }
 
 func wsPage(res http.ResponseWriter, req *http.Request) {
@@ -28,13 +33,13 @@ func wsPage(res http.ResponseWriter, req *http.Request) {
 		},
 	}
 
-	appID, token := parseParam(req)
-	if token == "" || appID == "" {
+	appID, sgin := parseParam(req)
+	if sgin == "" || appID == "" {
 		log.Println("param err")
 		return
 	}
-	if !utils.TokenVerify(appID, APP_SECRET, token) {
-		log.Println("invalid token: ", token)
+	if !utils.SignVerify(appID, APP_SECRET, sgin) {
+		log.Println("invalid sign: ", sgin)
 		return
 	}
 
@@ -45,17 +50,17 @@ func wsPage(res http.ResponseWriter, req *http.Request) {
 	}
 
 	go read(conn)
-	go write(conn)
+	go send(conn)
 }
 
-func parseParam(req *http.Request) (appID, token string) {
+func parseParam(req *http.Request) (appID, sgin string) {
 	rawQuery := req.URL.RawQuery
 	if rawQuery == "" {
 		return
 	}
 	arr := strings.Split(req.URL.RawQuery, "&")
 	appID = arr[0]
-	token = arr[1]
+	sgin = arr[1]
 
 	return
 }
@@ -76,15 +81,15 @@ func read(conn *websocket.Conn) {
 }
 
 
-func write(conn *websocket.Conn) {
+func send(conn *websocket.Conn) {
 	defer func() {
 		conn.Close()
 	}()
 
 	for {
-		var name string
-		fmt.Scanln(&name)
-		err := conn.WriteMessage(websocket.TextMessage, []byte(name))
+		var msg string
+		fmt.Scanln(&msg)
+		err := conn.WriteMessage(websocket.TextMessage, []byte(msg))
 		if err != nil {
 			fmt.Println("send msg err:", err)
 			return

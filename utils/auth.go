@@ -6,23 +6,25 @@ import (
 	"encoding/base64"
 )
 
-func GenToken(appid, secret string) string {
+// 签名
+func Sign(appid, secret string) string {
 	return base64.URLEncoding.EncodeToString(GenHmac(appid, secret))
 }
 
+// Hmac加密
 func GenHmac(appID, secret string) []byte {
 	hash := hmac.New(sha256.New, []byte(secret))
 	hash.Write([]byte(appID))
 	return hash.Sum(nil)
 }
 
-func TokenVerify(appID, secret, token string) bool {
-	expectedHmac := GenHmac(appID, secret)
-	givenHmac, err := base64.URLEncoding.DecodeString(token)
-
+// 验证签名
+func SignVerify(appID, secret, sign string) bool {
+	expectedSign := GenHmac(appID, secret)
+	givenSign, err := base64.URLEncoding.DecodeString(sign)
 	if err != nil {
 		return false
 	}
 
-	return hmac.Equal(givenHmac, expectedHmac)
+	return hmac.Equal(expectedSign, givenSign)
 }

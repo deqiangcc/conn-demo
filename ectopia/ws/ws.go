@@ -13,22 +13,26 @@ const (
 )
 
 func main() {
-	u := url.URL{
+	urlStr := url.URL{
 		Scheme:   "ws",
 		Host:     "127.0.0.1:8001",
 		Path:     "/ws",
-		RawQuery: fmt.Sprintf("%s&%s", APP_ID, utils.GenToken(APP_ID, APP_SECRET)),
+		RawQuery: fmt.Sprintf("%s&%s", APP_ID, utils.Sign(APP_ID, APP_SECRET)),
 	}
-	var dialer *websocket.Dialer
 
-	conn, _, err := dialer.Dial(u.String(), nil)
+	var dialer *websocket.Dialer
+	conn, _, err := dialer.Dial(urlStr.String(), nil)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	go timeWriter(conn)
+	go send(conn)
+	go read(conn)
+}
 
+// 读取消息
+func read(conn *websocket.Conn)  {
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -40,11 +44,12 @@ func main() {
 	}
 }
 
-func timeWriter(conn *websocket.Conn) {
+// 发送消息
+func send(conn *websocket.Conn) {
 	for {
-		var name string
-		fmt.Scanln(&name)
-		err := conn.WriteMessage(websocket.TextMessage, []byte(name))
+		var msg string
+		fmt.Scanln(&msg)
+		err := conn.WriteMessage(websocket.TextMessage, []byte(msg))
 		if err != nil {
 			fmt.Println("send msg err:", err)
 			return
