@@ -7,12 +7,11 @@ import (
 	"fmt"
 	ts "github.com/0987363/tcp_server"
 	"sync"
-	"time"
 )
 
 type CenterConnection struct {
-	Conn   *ts.Context
-	IsAuth bool // 是否已鉴权
+	Conn   *ts.Context // 连接信息
+	IsAuth bool        // 是否已鉴权
 }
 
 // 连接集合
@@ -22,7 +21,7 @@ var CenterConnectionMap sync.Map
 func main() {
 	server := ts.New("127.0.0.1:8001")
 	server.SetUdpProc(10)
-	server.SetTimeout(time.Second * 30)
+	//server.SetTimeout(time.Second * 30)
 	server.SetCacheSize(4096)
 	server.OnNewMessage(func(c *ts.Context) {
 		read(c)
@@ -79,7 +78,7 @@ func read(c *ts.Context) {
 			return
 		}
 		CenterConnectionMap.Store(msg.AppID, CenterConnection{
-			Conn: c,
+			Conn:   c,
 			IsAuth: true,
 		})
 	default:

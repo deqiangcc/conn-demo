@@ -9,6 +9,9 @@ import (
 	"net"
 	"net/http"
 )
+type request struct {
+	Msg string `json:"msg"`
+}
 
 var conn net.Conn
 
@@ -56,10 +59,6 @@ func read() {
 		}
 		fmt.Println("received msg：", string(buf[:n]))
 	}
-}
-
-type request struct {
-	Msg string `json:"msg"`
 }
 
 func startHttpserver() {
