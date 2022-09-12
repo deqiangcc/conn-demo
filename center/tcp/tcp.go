@@ -28,9 +28,14 @@ func main() {
 
 func send(c *ts.Context) {
 	for {
-		var msg string
-		fmt.Scanln(&msg)
-		_, err := c.Send([]byte(msg))
+		var data string
+		fmt.Scanln(&data)
+		sendMsg, err := utils.NewMsg(data)
+		if err != nil {
+			fmt.Println("new msg err: ", err)
+			continue
+		}
+		_, err = c.Send(sendMsg)
 		if err != nil {
 			fmt.Println("send msg err:", err)
 		}
@@ -54,7 +59,7 @@ func read(c *ts.Context) {
 		return
 	}
 
-	fmt.Printf("received msg：%+v", msg)
+	fmt.Printf("received msg：%+v\n", msg)
 }
 
 func Verify(msg *utils.Message) error {
