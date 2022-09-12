@@ -4,27 +4,25 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 )
 
-// 签名
-func Sign(appid, secret string) string {
-	return base64.URLEncoding.EncodeToString(GenHmac(appid, secret))
+func GenHmacStr(secret string) string {
+	return base64.URLEncoding.EncodeToString(GenHmac(secret))
 }
 
-// Hmac加密
-func GenHmac(appID, secret string) []byte {
+func GenHmac(secret string) []byte {
 	hash := hmac.New(sha256.New, []byte(secret))
-	hash.Write([]byte(appID))
+	//hash.Write([]byte(APP_ID))
 	return hash.Sum(nil)
 }
 
-// 验证签名
-func SignVerify(appID, secret, sign string) bool {
-	expectedSign := GenHmac(appID, secret)
-	givenSign, err := base64.URLEncoding.DecodeString(sign)
+func HmacVerify(secret string, hmacStr string) bool {
+	givenHmac, err := base64.URLEncoding.DecodeString(hmacStr)
 	if err != nil {
+		fmt.Println("decode hmac err:", err)
 		return false
 	}
-
-	return hmac.Equal(expectedSign, givenSign)
+	expectedHmac := GenHmac(secret)
+	return hmac.Equal(expectedHmac, givenHmac)
 }

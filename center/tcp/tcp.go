@@ -6,12 +6,18 @@ import (
 	"errors"
 	"fmt"
 	ts "github.com/0987363/tcp_server"
+	"sync"
 	"time"
 )
 
-const (
-	APP_SECRET = "6319ac97-52fd-fc07-2182-654f-163f5f0f"
-)
+type CenterConnection struct {
+	Conn   *ts.Context
+	IsAuth bool // 是否已鉴权
+}
+
+// 连接集合
+//var CenterConnectionMap = make(map[string]*CenterConnection)
+var CenterConnectionMap sync.Map
 
 func main() {
 	server := ts.New("127.0.0.1:8001")
@@ -20,58 +26,82 @@ func main() {
 	server.SetCacheSize(4096)
 	server.OnNewMessage(func(c *ts.Context) {
 		read(c)
-		go send(c)
+		go sendMsg(c)
 	})
+
 	fmt.Println("start tcp server success ...")
 	server.Listen()
 }
 
-func send(c *ts.Context) {
+func sendMsg(c *ts.Context) {
 	for {
 		var data string
 		fmt.Scanln(&data)
-		sendMsg, err := utils.NewMsg(data)
-		if err != nil {
-			fmt.Println("new msg err: ", err)
-			continue
+		msg := &utils.CenterMessage{
+			Type: utils.CenterMsgTypeTest,
+			Data: data,
 		}
-		_, err = c.Send(sendMsg)
+		err := send(c, msg)
 		if err != nil {
 			fmt.Println("send msg err:", err)
 		}
 	}
 }
 
+func send(c *ts.Context, msg *utils.CenterMessage) error {
+	msgJson, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	_, err = c.Send(msgJson)
+
+	return err
+}
+
 func read(c *ts.Context) {
 	data := c.ReadData()
 	defer c.Trim(len(data))
 
-	var msg utils.Message
+	var msg utils.CenterMessage
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		fmt.Println("unmarshal msg err:", err)
 		c.AbortWithError(err)
 		return
 	}
-	if err := Verify(&msg); err != nil {
-		fmt.Println("msg auth need")
-		c.AbortWithError(errors.New("msg auth need"))
-		return
-	}
 
 	fmt.Printf("received msg：%+v\n", msg)
-}
-
-func Verify(msg *utils.Message) error {
-	if msg.Auth == nil {
-		fmt.Println("msg auth need")
-		return errors.New("msg auth need")
+	switch msg.Type {
+	case utils.CenterMsgTypeAuth:
+		if !utils.HmacVerify(utils.APP_SECRET, (msg.Data).(string)) {
+			fmt.Println("hmac verify failed")
+			c.AbortWithError(errors.New("hmac verify err"))
+			return
+		}
+		CenterConnectionMap.Store(msg.AppID, CenterConnection{
+			Conn: c,
+			IsAuth: true,
+		})
+	default:
+		val, ok := CenterConnectionMap.Load(msg.AppID)
+		conn := (val).(CenterConnection)
+		if ok {
+			if !conn.IsAuth {
+				fmt.Println("connect not auth")
+				c.AbortWithError(errors.New("connect not auth"))
+				return
+			}
+			testMsg := &utils.CenterMessage{
+				Type: utils.CenterMsgTypeTest,
+				Data: "hello world",
+			}
+			if err := send(conn.Conn, testMsg); err != nil {
+				fmt.Println("send msg err:", err)
+				c.AbortWithError(err)
+				return
+			}
+		} else {
+			fmt.Printf("invalid msg: %+v\n", msg)
+		}
 	}
-
-	if !utils.SignVerify(msg.Auth.AppID, APP_SECRET, msg.Auth.Sign) {
-		fmt.Println("invalid sign: ", msg.Auth.Sign)
-		return errors.New(fmt.Sprint("invalid sign: ", msg.Auth.Sign))
-	}
-
-	return nil
 }

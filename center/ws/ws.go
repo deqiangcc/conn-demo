@@ -10,10 +10,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const (
-	//APP_ID     = "6319ac9705b6059fa59de161"
-	APP_SECRET = "6319ac97-52fd-fc07-2182-654f-163f5f0f"
-)
 
 func main() {
 	http.HandleFunc("/ws", wsPage)
@@ -33,13 +29,13 @@ func wsPage(res http.ResponseWriter, req *http.Request) {
 		},
 	}
 
-	appID, sgin := parseParam(req)
-	if sgin == "" || appID == "" {
+	appID, hmac := parseParam(req)
+	if hmac == "" || appID == "" {
 		log.Println("param err")
 		return
 	}
-	if !utils.SignVerify(appID, APP_SECRET, sgin) {
-		log.Println("invalid sign: ", sgin)
+	if !utils.HmacVerify(utils.APP_SECRET, hmac) {
+		log.Println("invalid hmac: ", hmac)
 		return
 	}
 

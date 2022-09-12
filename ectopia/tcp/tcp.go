@@ -13,35 +13,40 @@ import (
 var conn net.Conn
 
 func main() {
-	conn, err := net.Dial("tcp", "127.0.0.1:8001")
+	var err error
+	conn, err = net.Dial("tcp", "127.0.0.1:8001")
 	if err != nil {
 		log.Fatal("Failed to connect to test server")
 	}
 	fmt.Println("connect tcp server success ...")
 
-	startHttpserver(conn)
-	go read(conn)
-	send(conn)
-}
-
-func send(conn net.Conn) {
-	for {
-		var data string
-		fmt.Scanln(&data)
-
-		msg, err := utils.NewMsg(data)
-		if err != nil {
-			fmt.Println("new msg err:", err)
-			continue
-		}
-		_, err = conn.Write(msg)
-		if err != nil {
-			fmt.Println("send msg err:", err)
-		}
+	msg := &utils.CenterMessage{
+		AppID: utils.APP_ID,
+		Type: utils.CenterMsgTypeAuth,
+		Data: utils.GenHmac(utils.APP_SECRET),
 	}
+	err = send(msg)
+	if err != nil {
+		fmt.Println("send msg err:", err)
+		return
+	}
+
+	startHttpserver()
+	go read()
 }
 
-func read(conn net.Conn) {
+
+func send(msg *utils.CenterMessage) error {
+	msgJson, err := json.Marshal(msg)
+	if err != nil {
+		fmt.Println("marshal msg err:", err)
+		return err
+	}
+	_, err = conn.Write(msgJson)
+	return err
+}
+
+func read() {
 	for {
 		buf := [4096]byte{}
 		n, err := conn.Read(buf[:])
@@ -57,7 +62,7 @@ type request struct {
 	Msg string `json:"msg"`
 }
 
-func startHttpserver(conn net.Conn) {
+func startHttpserver() {
 	router := gin.Default()
 	router.POST("/test1", func(c *gin.Context) {
 		var req request
@@ -66,16 +71,16 @@ func startHttpserver(conn net.Conn) {
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
 		}
-		//fmt.Println(conn)
-		//fmt.Println(postMsg)
 		if conn != nil {
-			sendMsg, err := utils.NewMsg(req.Msg)
-			if err != nil {
-				fmt.Println("new msg err: ", err)
-				c.AbortWithStatus(http.StatusInternalServerError)
+			sendMsg := &utils.CenterMessage{
+				AppID: utils.APP_ID,
+				Type: utils.CenterMsgTypeTest,
+				Data: req.Msg,
+			}
+			if err := send(sendMsg); err != nil {
+				fmt.Println("send msg err", err)
 				return
 			}
-			_, err = conn.Write(sendMsg)
 			for {
 				buf := [4096]byte{}
 				n, err := conn.Read(buf[:])
@@ -83,7 +88,7 @@ func startHttpserver(conn net.Conn) {
 					fmt.Println("Read fail err", err)
 					return
 				}
-				var receivedMsg utils.Message
+				var receivedMsg utils.CenterMessage
 				err = json.Unmarshal([]byte(string(buf[:n])), &receivedMsg)
 				if err != nil {
 					fmt.Println("unmarshal msg err:", err)

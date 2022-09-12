@@ -17,7 +17,7 @@ func main() {
 		Scheme:   "ws",
 		Host:     "127.0.0.1:8001",
 		Path:     "/ws",
-		RawQuery: fmt.Sprintf("%s&%s", APP_ID, utils.Sign(APP_ID, APP_SECRET)),
+		RawQuery: fmt.Sprintf("%s&%s", APP_ID, utils.GenHmacStr(APP_SECRET)),
 	}
 
 	var dialer *websocket.Dialer
@@ -27,8 +27,8 @@ func main() {
 		return
 	}
 
-	go send(conn)
 	go read(conn)
+	send(conn)
 }
 
 // 读取消息
