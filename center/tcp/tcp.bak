@@ -40,8 +40,8 @@ func sendMsg(c *ts.Context) {
 	for {
 		var data string
 		fmt.Scanln(&data)
-		msg := &utils.CenterMessage{
-			Type: utils.CenterMsgTypeTest,
+		msg := &utils.BrokerMessage{
+			Type: utils.BrokerMsgTypeTest,
 			Data: data,
 		}
 		err := send(c, msg)
@@ -51,7 +51,7 @@ func sendMsg(c *ts.Context) {
 	}
 }
 
-func send(c *ts.Context, msg *utils.CenterMessage) error {
+func send(c *ts.Context, msg *utils.BrokerMessage) error {
 	msgJson, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func read(c *ts.Context) {
 		return
 	}
 
-	var msg utils.CenterMessage
+	var msg utils.BrokerMessage
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		fmt.Println("unmarshal msg err:", err)
@@ -81,7 +81,7 @@ func read(c *ts.Context) {
 
 	fmt.Printf("received msg：%+v\n", msg)
 	switch msg.Type {
-	case utils.CenterMsgTypeAuth:
+	case utils.BrokerMsgTypeAuth:
 		if !utils.HmacVerify(utils.APP_SECRET, (msg.Data).(string)) {
 			fmt.Println("hmac verify failed")
 			c.AbortWithError(errors.New("hmac verify err"))
@@ -100,8 +100,8 @@ func read(c *ts.Context) {
 				c.AbortWithError(errors.New("connect not auth"))
 				return
 			}
-			testMsg := &utils.CenterMessage{
-				Type: utils.CenterMsgTypeTest,
+			testMsg := &utils.BrokerMessage{
+				Type: utils.BrokerMsgTypeTest,
 				Data: "hello world",
 			}
 			if err := send(conn.Conn, testMsg); err != nil {

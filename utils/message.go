@@ -6,12 +6,26 @@ const (
 )
 
 const (
-	CenterMsgTypeAuth = 1 // 鉴权
-	CenterMsgTypeTest = 2 // 测试
+	BrokerMsgTypeError        = 0 // 错误消息
+	BrokerMsgTypeAuthRequest  = 1 // 鉴权请求
+	BrokerMsgTypeAuthResponse = 2 // 鉴权响应
+	BrokerMsgTypeTestRequest  = 3 // 测试请求
+	BrokerMsgTypeTestResonse  = 4 // 测试响应
 )
 
-type CenterMessage struct {
-	AppID string      `json:"app_id"` // 平台id
-	Type  uint32      `json:"type"`   // 消息类型：1-auth：受权请求，2-gps request，3...
-	Data  interface{} `json:"data"`   // 数据
+type BrokerMessage struct {
+	RequestID string      `json:"request_id"` // 请求id
+	AppID     string      `json:"app_id"`     // 平台id
+	Type      uint32      `json:"type"`       // 消息类型：1-auth：鉴权请求，2-鉴权响应，3-测试请求，4-测试响应
+	Data      interface{} `json:"data"`       // 数据
+}
+
+type BrokerMessageRequest struct {
+	ThirdPlatformAppID string      `json:"third_platform_app_id"`
+	Type               uint32      `json:"type"`
+	Data               interface{} `json:"data"`
+}
+
+type BrokerMessageResponse struct {
+	Data interface{} `json:"data"`
 }

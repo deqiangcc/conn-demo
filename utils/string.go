@@ -3,27 +3,36 @@ package utils
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"math/rand"
 	"time"
+	"unsafe"
 )
 
-func RandString(n int, bSeg bool) string {
-	unix32bits := uint32(time.Now().UTC().Unix())
+const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-	buff := make([]byte, 12)
+const (
+	// 6 bits to represent a letter index
+	letterIdBits = 6
+	// All 1-bits as many as letterIdBits
+	letterIdMask = 1<<letterIdBits - 1
+	letterIdMax  = 63 / letterIdBits
+)
+var src = rand.NewSource(time.Now().UnixNano())
 
-	numRead, err := rand.Read(buff)
-
-	if numRead != len(buff) || err != nil {
-		panic(err)
+func RandString(n int) string {
+	b := make([]byte, n)
+	for i, cache, remain := n-1, src.Int63(), letterIdMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = src.Int63(), letterIdMax
+		}
+		if idx := int(cache & letterIdMask); idx < len(letters) {
+			b[i] = letters[idx]
+			i--
+		}
+		cache >>= letterIdBits
+		remain--
 	}
-
-	if bSeg {
-		return fmt.Sprintf("%x-%x-%x-%x-%x-%x", unix32bits, buff[0:2], buff[2:4], buff[4:6], buff[6:8], buff[8:])
-	}
-
-	return fmt.Sprintf("%x%x%x%x%x%x", unix32bits, buff[0:2], buff[2:4], buff[4:6], buff[6:8], buff[8:])
+	return *(*string)(unsafe.Pointer(&b))
 }
 
 func GetBytes(data interface{}) ([]byte, error) {
