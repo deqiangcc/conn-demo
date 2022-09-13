@@ -8,20 +8,35 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 )
 type request struct {
 	Msg string `json:"msg"`
 }
 
-var conn net.Conn
+var conn *net.TCPConn
 
 func main() {
 	var err error
-	conn, err = net.Dial("tcp", "127.0.0.1:8001")
+	//dialer := net.Dialer{}
+	//dialer.KeepAlive = time.Second * 3
+	//conn, err = dialer.Dial("tcp", "127.0.0.1:8001")
+	tcpAddr, _ := net.ResolveTCPAddr("tcp4", "localhost:8001")
+	conn, err = net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
-		log.Fatal("Failed to connect to test server")
+		log.Fatal("Failed to connect to server")
 	}
 	fmt.Println("connect tcp server success ...")
+
+	err = conn.SetKeepAlive(true)
+	if err != nil {
+		fmt.Println("set keepAlive err:", err)
+		return
+	}
+	if err = conn.SetKeepAlivePeriod(3*time.Second); err != nil {
+		fmt.Println("set keepAlive time err:", err)
+		return
+	}
 
 	msg := &utils.CenterMessage{
 		AppID: utils.APP_ID,
@@ -85,12 +100,14 @@ func startHttpserver() {
 				n, err := conn.Read(buf[:])
 				if err != nil {
 					fmt.Println("Read fail err", err)
+					c.AbortWithStatus(http.StatusBadRequest)
 					return
 				}
 				var receivedMsg utils.CenterMessage
-				err = json.Unmarshal([]byte(string(buf[:n])), &receivedMsg)
+				err = json.Unmarshal(buf[:n], &receivedMsg)
 				if err != nil {
 					fmt.Println("unmarshal msg err:", err)
+					c.AbortWithStatus(http.StatusBadRequest)
 					break
 				}
 				fmt.Printf("received msg: %+v\n", receivedMsg)
@@ -100,9 +117,11 @@ func startHttpserver() {
 				}
 			}
 		} else {
-			c.String(http.StatusOK, "can not find gwid,please check gwid")
+			fmt.Println("disconnect")
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
 		}
 
 	})
-	router.Run(":8083")
+	router.Run(":8003")
 }

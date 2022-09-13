@@ -3,17 +3,19 @@ package main
 import (
 	"conn-demo/utils"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net"
+	ts "github.com/0987363/tcp_server"
 	"reflect"
 	"sync"
+	"time"
 )
 
 var KeepFlag = []byte{0xFF, 0xFF, 0xFF, 0xFF}
 
 type CenterConnection struct {
-	Conn   net.Conn // 连接信息
-	IsAuth bool     // 是否已鉴权
+	Conn   *ts.Context // 连接信息
+	IsAuth bool        // 是否已鉴权
 }
 
 // 连接集合
@@ -21,47 +23,59 @@ type CenterConnection struct {
 var CenterConnectionMap sync.Map
 
 func main() {
-	listener, err := net.ListenTCP("tcp", &net.TCPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: 8001,
+	server := ts.New("127.0.0.1:8001")
+	server.SetUdpProc(10)
+	server.SetTimeout(time.Second * 30)
+	server.SetCacheSize(4096)
+	server.OnNewMessage(func(c *ts.Context) {
+		read(c)
+		go sendMsg(c)
 	})
-	if err != nil {
-		fmt.Println("Listen tcp server failed,err:", err)
-		return
-	}
-	fmt.Println("start tcp server success ...")
 
-	conn, err := listener.Accept()
-	if err != nil {
-		fmt.Println("Listen.Accept failed,err:", err)
-	}
+	fmt.Println("start tcp server success ...")
+	server.Listen()
+}
+
+func sendMsg(c *ts.Context) {
 	for {
-		read(conn)
+		var data string
+		fmt.Scanln(&data)
+		msg := &utils.CenterMessage{
+			Type: utils.CenterMsgTypeTest,
+			Data: data,
+		}
+		err := send(c, msg)
+		if err != nil {
+			fmt.Println("send msg err:", err)
+		}
 	}
 }
 
-func send(conn net.Conn, msg *utils.CenterMessage) error {
+func send(c *ts.Context, msg *utils.CenterMessage) error {
 	msgJson, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(msgJson)
+	_, err = c.Send(msgJson)
+
 	return err
 }
 
-func read(conn net.Conn) {
-	buf := [4096]byte{}
-	n, err := conn.Read(buf[:])
-	if err != nil {
-		fmt.Println("Read fail err", err)
+func read(c *ts.Context) {
+	data := c.ReadData()
+	defer c.Trim(len(data))
+
+	fmt.Println(data)
+	if IsKeep(data) {
+		c.Send(KeepFlag)
 		return
 	}
-	data := buf[:n]
 
 	var msg utils.CenterMessage
-	err = json.Unmarshal(data, &msg)
+	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		fmt.Println("unmarshal msg err:", err)
+		c.AbortWithError(err)
 		return
 	}
 
@@ -70,10 +84,11 @@ func read(conn net.Conn) {
 	case utils.CenterMsgTypeAuth:
 		if !utils.HmacVerify(utils.APP_SECRET, (msg.Data).(string)) {
 			fmt.Println("hmac verify failed")
+			c.AbortWithError(errors.New("hmac verify err"))
 			return
 		}
 		CenterConnectionMap.Store(msg.AppID, CenterConnection{
-			Conn:   conn,
+			Conn:   c,
 			IsAuth: true,
 		})
 	default:
@@ -82,15 +97,16 @@ func read(conn net.Conn) {
 		if ok {
 			if !conn.IsAuth {
 				fmt.Println("connect not auth")
+				c.AbortWithError(errors.New("connect not auth"))
 				return
 			}
 			testMsg := &utils.CenterMessage{
-				AppID: utils.APP_ID,
 				Type: utils.CenterMsgTypeTest,
 				Data: "hello world",
 			}
 			if err := send(conn.Conn, testMsg); err != nil {
 				fmt.Println("send msg err:", err)
+				c.AbortWithError(err)
 				return
 			}
 		} else {
