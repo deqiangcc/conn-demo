@@ -1,19 +1,19 @@
 package redis
 
 import (
+	"conn-demo/utils"
 	"encoding/json"
 	"github.com/go-redis/redis"
 )
 
 var redisClient *redis.Client
 
-type CenterMessage struct {
-	RequestID     string      `json:"request_id"`
-	DruidAppID    string      `json:"druid_app_id"`
-	BrokerMsgType uint32      `json:"broker_msg_type"`
-	Data          interface{} `json:"data"`
-}
-
+//type CenterMessage struct {
+//	RequestID     string      `json:"request_id"`
+//	DruidAppID    string      `json:"druid_app_id"`
+//	BrokerMsgType uint32      `json:"broker_msg_type"`
+//	Data          interface{} `json:"data"`
+//}
 
 func ConnRedis() error {
 	redisClient = redis.NewClient(&redis.Options{
@@ -30,44 +30,49 @@ func ConnRedis() error {
 	return nil
 }
 
-func SetCenterRequestMsg(msg *CenterMessage) error {
+const (
+	BrokerToCenterMsg = "center_to_broker_msg"
+	CenterToBrokerMsg = "broker_to_center_msg"
+)
+
+func SetCenterRequestMsg(msg *utils.BrokerMessage) error {
 	msgBytes, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	_, err = redisClient.HSetNX("center-request-messages", msg.RequestID, string(msgBytes)).Result()
+	_, err = redisClient.HSetNX(CenterToBrokerMsg, msg.RequestID, string(msgBytes)).Result()
 
 	return err
 }
 
-func DelCenterRequestMsg(msg *CenterMessage) error {
-	_, err := redisClient.HDel("center-request-messages", msg.RequestID).Result()
+func DelCenterRequestMsg(msg *utils.BrokerMessage) error {
+	_, err := redisClient.HDel(CenterToBrokerMsg, msg.RequestID).Result()
 
 	return err
 }
 
-func SetCenterResponseMsg(msg *CenterMessage) error {
+func SetCenterResponseMsg(msg *utils.BrokerMessage) error {
 	msgBytes, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	_, err = redisClient.HSetNX("center-response-messages", msg.RequestID, string(msgBytes)).Result()
+	_, err = redisClient.HSetNX(BrokerToCenterMsg, msg.RequestID, string(msgBytes)).Result()
 
 	return err
 }
 
-func DelCenterReponseMsg(msg *CenterMessage) error {
-	_, err := redisClient.HDel("center-response-messages", msg.RequestID).Result()
+func DelCenterReponseMsg(msg *utils.BrokerMessage) error {
+	_, err := redisClient.HDel(BrokerToCenterMsg, msg.RequestID).Result()
 
 	return err
 }
 
-func GetCenterRequestMsg(requestID string) (*CenterMessage, error) {
-	ret, err := redisClient.HGet("center-request-messages", requestID).Result()
+func GetCenterRequestMsg(requestID string) (*utils.BrokerMessage, error) {
+	ret, err := redisClient.HGet(CenterToBrokerMsg, requestID).Result()
 	if err != nil {
 		return nil, err
 	}
-	var msg *CenterMessage
+	var msg *utils.BrokerMessage
 	if err = json.Unmarshal([]byte(ret), &msg); err != nil {
 		return nil, err
 	}
@@ -75,15 +80,15 @@ func GetCenterRequestMsg(requestID string) (*CenterMessage, error) {
 	return msg, nil
 }
 
-func GetCenterResponseMsg(requestID string) (*CenterMessage, error) {
-	ret, err := redisClient.HGet("center-response-messages", requestID).Result()
+func GetCenterResponseMsg(requestID string) (*utils.BrokerMessage, error) {
+	ret, err := redisClient.HGet(BrokerToCenterMsg, requestID).Result()
 	if err != nil && err != redis.Nil {
 		return nil, err
 	}
 	if len(ret) == 0 {
 		return nil, nil
 	}
-	var msg *CenterMessage
+	var msg *utils.BrokerMessage
 	if err = json.Unmarshal([]byte(ret), &msg); err != nil {
 		return nil, err
 	}
@@ -91,20 +96,19 @@ func GetCenterResponseMsg(requestID string) (*CenterMessage, error) {
 	return msg, nil
 }
 
-func GetCenterRequestMsgAll() ([]*CenterMessage, error) {
-	ret, err := redisClient.HGetAll("center-request-messages").Result()
+func GetCenterRequestMsgAll() ([]*utils.BrokerMessage, error) {
+	ret, err := redisClient.HGetAll(CenterToBrokerMsg).Result()
 	if err != nil {
 		return nil, err
 	}
-	msgs := []*CenterMessage{}
+	msgs := []*utils.BrokerMessage{}
 	for _, val := range ret {
-		var msg *CenterMessage
+		var msg *utils.BrokerMessage
 		if err = json.Unmarshal([]byte(val), &msg); err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, msg)
 	}
-
 
 	return msgs, nil
 }

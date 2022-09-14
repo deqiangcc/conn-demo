@@ -14,19 +14,16 @@ import (
 	"time"
 )
 
-type CenterConnection struct {
+type BrokerConnection struct {
 	Conn   net.Conn // 连接信息
 	IsAuth bool     // 是否已鉴权
 }
 
 // 连接集合
-//var CenterConnectionMap = make(map[string]*CenterConnection)
-var CenterConnectionMap sync.Map
+//var BrokerConnectionMap = make(map[string]*BrokerConnection)
+var BrokerConnectionMap sync.Map
 
 func main() {
-	// 开启一个http服务
-	//go httpServer()
-
 	if err := redis.ConnRedis(); err != nil {
 		log.Fatal("conn redis err:", err)
 	}
@@ -74,18 +71,13 @@ func ReadCenterMsg() {
 		}
 		for _, msg := range msgs {
 			fmt.Printf("received center msg：%+v\n", msg)
-			val, ok := CenterConnectionMap.Load(msg.DruidAppID)
+			val, ok := BrokerConnectionMap.Load(msg.AppID)
 			if !ok {
-				log.Println("app disconnect, app_id:", msg.DruidAppID)
+				log.Println("app disconnect, app_id:", msg.AppID)
 				continue
 			}
-			cconn := (val).(CenterConnection)
-			err = sendDruidPlatformMsg(cconn.Conn, &utils.BrokerMessage{
-				RequestID: msg.RequestID,
-				AppID:     msg.DruidAppID,
-				Type:      msg.BrokerMsgType,
-				Data:      msg.Data,
-			})
+			cconn := (val).(BrokerConnection)
+			err = sendDruidPlatformMsg(cconn.Conn, msg)
 			if err != nil {
 				log.Println("send app msg err:", err)
 				continue
@@ -116,13 +108,13 @@ func brokerMsg(ctx *gin.Context) {
 		return
 	}
 
-	val, ok := CenterConnectionMap.Load(req.ThirdPlatformAppID)
+	val, ok := BrokerConnectionMap.Load(req.ThirdPlatformAppID)
 	if !ok {
 		log.Println("app disconnect")
 		ctx.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
-	cconn := (val).(CenterConnection)
+	cconn := (val).(BrokerConnection)
 	if !cconn.IsAuth {
 		log.Println("app connect not auth")
 		ctx.AbortWithStatus(http.StatusInternalServerError)
@@ -190,7 +182,7 @@ func msgHandle(msg *utils.BrokerMessage, conn net.Conn) error {
 			fmt.Println("hmac verify failed")
 			return errors.New("hmac verify failed")
 		}
-		CenterConnectionMap.Store(msg.AppID, CenterConnection{
+		BrokerConnectionMap.Store(msg.AppID, BrokerConnection{
 			Conn:   conn,
 			IsAuth: true,
 		})
@@ -199,11 +191,7 @@ func msgHandle(msg *utils.BrokerMessage, conn net.Conn) error {
 	case utils.BrokerMsgTypeTestResonse:
 		//sendMsg.Type = utils.BrokerMsgTypeTestResonse
 		//sendMsg.Data = msg.Data
-		newCenterMsg := &redis.CenterMessage{
-			RequestID: msg.RequestID,
-			Data:      msg.Data,
-		}
-		if err := redis.SetCenterResponseMsg(newCenterMsg); err != nil {
+		if err := redis.SetCenterResponseMsg(msg); err != nil {
 			fmt.Println("set center response msg err:", err)
 			return err
 		}
@@ -218,8 +206,8 @@ func msgHandle(msg *utils.BrokerMessage, conn net.Conn) error {
 		}
 	}
 
-	val, ok := CenterConnectionMap.Load(msg.AppID)
-	cconn := (val).(CenterConnection)
+	val, ok := BrokerConnectionMap.Load(msg.AppID)
+	cconn := (val).(BrokerConnection)
 	if ok {
 		if !cconn.IsAuth {
 			return errors.New("connect not auth")

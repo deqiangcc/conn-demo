@@ -13,14 +13,14 @@ import (
 
 var KeepFlag = []byte{0xFF, 0xFF, 0xFF, 0xFF}
 
-type CenterConnection struct {
+type BrokerConnection struct {
 	Conn   *ts.Context // 连接信息
 	IsAuth bool        // 是否已鉴权
 }
 
 // 连接集合
-//var CenterConnectionMap = make(map[string]*CenterConnection)
-var CenterConnectionMap sync.Map
+//var BrokerConnectionMap = make(map[string]*BrokerConnection)
+var BrokerConnectionMap sync.Map
 
 func main() {
 	server := ts.New("127.0.0.1:8001")
@@ -87,13 +87,13 @@ func read(c *ts.Context) {
 			c.AbortWithError(errors.New("hmac verify err"))
 			return
 		}
-		CenterConnectionMap.Store(msg.AppID, CenterConnection{
+		BrokerConnectionMap.Store(msg.AppID, BrokerConnection{
 			Conn:   c,
 			IsAuth: true,
 		})
 	default:
-		val, ok := CenterConnectionMap.Load(msg.AppID)
-		conn := (val).(CenterConnection)
+		val, ok := BrokerConnectionMap.Load(msg.AppID)
+		conn := (val).(BrokerConnection)
 		if ok {
 			if !conn.IsAuth {
 				fmt.Println("connect not auth")

@@ -29,11 +29,11 @@ func test(c *gin.Context) {
 		return
 	}
 
-	msg := &redis.CenterMessage{
-		RequestID:     utils.RandString(12),
-		DruidAppID:    utils.APP_ID,
-		BrokerMsgType: utils.BrokerMsgTypeTestRequest,
-		Data:          req.Data,
+	msg := &utils.BrokerMessage{
+		RequestID: utils.RandString(12),
+		AppID:     utils.APP_ID,
+		Type:      utils.BrokerMsgTypeTestRequest,
+		Data:      req.Data,
 	}
 	err := redis.SetCenterRequestMsg(msg)
 	if err != nil {
@@ -42,7 +42,7 @@ func test(c *gin.Context) {
 		return
 	}
 
-	for  {
+	for {
 		responseMsg, err := redis.GetCenterResponseMsg(msg.RequestID)
 		if err != nil {
 			log.Println("get redis err: ", err)
